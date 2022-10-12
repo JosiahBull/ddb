@@ -1,14 +1,28 @@
 [package]
-name = "ddb"
+name = "dds"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+authors = ["Josiah Bull"]
+description = "A conservative, precise, and concurrent file syncing utility for Rust"
+repository = "https://github.com/JosiahBull/dds"
+license = "MIT"
+readme = "README.md"
+keywords = ["sync", "file", "filesystem"]
+categories = ["command-line-utilities"]
+documentation = "https://github.com/JosiahBull/dds"
 
 [dependencies]
 indicatif = { version = "0.17.1" }
 clap = { version =  "4.0.13", features = []}
 static_assertions = "1.1.0"
+human-panic = "1.0.3"
 
 [dev-dependencies]
 rand="0.8.5"
+
+# take some basic steps to reduce the size of the binary
+[profile.release]
+# strip = true # debug symbols are good for reporting bugs
+# opt-level = "z"  # Optimize for size, will reduce performance
+lto = true
+codegen-units = 1
