@@ -1,6 +1,6 @@
-use std::{fs::OpenOptions, io::Read, os::unix::prelude::FileExt};
+use std::{fs::OpenOptions, io::Read};
 
-use crate::{utils::{validate_paths, break_into_blocks, Config}, BLOCK_SIZE};
+use crate::{utils::{validate_paths, Config, WriteJob}};
 
 pub fn controller(cfg: Config) {
     validate_paths(&cfg);
@@ -51,14 +51,8 @@ pub fn controller(cfg: Config) {
         }
 
         if i_buffer != o_buffer {
-            let boxed =
-                break_into_blocks(i_buffer, &o_buffer, i_bytes_read, read_blocks * 1024*1024);
-
-            // loop through the blocks in the job
-            for block in &boxed.blocks {
-                // write the block to the output file
-                // o_file.write_at(block.data, block.offset).unwrap();
-            }
+            let job = WriteJob::break_into_blocks(i_buffer, &o_buffer, i_bytes_read, read_blocks * 1024*1024);
+            job.write(&mut o_file).unwrap();
         }
 
         // if we read less than the block size, we're done

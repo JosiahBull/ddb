@@ -1,8 +1,6 @@
 use std::{
     fs::OpenOptions,
     io::Read,
-    os::unix::prelude::FileExt,
-    pin::Pin,
     sync::mpsc::{Receiver, SyncSender},
     thread::sleep,
     time::{Duration, Instant}
@@ -10,9 +8,9 @@ use std::{
 
 use indicatif::{ProgressBar, MultiProgress, ProgressStyle};
 
-use crate::{utils::{validate_paths, Config, WriteJob, break_into_blocks}, BLOCK_SIZE};
+use crate::{utils::{validate_paths, Config, WriteJob}, BLOCK_SIZE};
 
-fn reader<'a>(cfg: &'a Config, write_q: SyncSender<WriteJob>, pb: ProgressBar) {
+fn reader(cfg: &Config, write_q: SyncSender<WriteJob>, pb: ProgressBar) {
     // open the input and output files
     let mut i_file = OpenOptions::new()
         .read(true)
@@ -71,8 +69,7 @@ fn reader<'a>(cfg: &'a Config, write_q: SyncSender<WriteJob>, pb: ProgressBar) {
         }
 
         if i_buffer != o_buffer {
-            let boxed =
-                break_into_blocks(i_buffer, &o_buffer, i_bytes_read, read_blocks * BLOCK_SIZE);
+            let boxed = WriteJob::break_into_blocks(i_buffer, &o_buffer, i_bytes_read, read_blocks * BLOCK_SIZE);
 
             // start timer
             let start = std::time::Instant::now();
@@ -98,9 +95,9 @@ fn reader<'a>(cfg: &'a Config, write_q: SyncSender<WriteJob>, pb: ProgressBar) {
     pb.finish_with_message("Done reading");
 }
 
-fn writer<'a>(cfg: &'a Config, write_q: Receiver<WriteJob>, pb: MultiProgress) {
+fn writer(cfg: &Config, write_q: Receiver<WriteJob>, pb: MultiProgress) {
     // open the output file
-    let o_file = OpenOptions::new()
+    let mut o_file = OpenOptions::new()
         .read(false)
         .write(true)
         .create(false)
@@ -121,13 +118,9 @@ fn writer<'a>(cfg: &'a Config, write_q: Receiver<WriteJob>, pb: MultiProgress) {
         average -= average / samples;
         average += (Instant::now() - start).as_nanos() as u64 / samples;
 
-        // loop through the blocks in the job
-        for block in &job.blocks {
-            // write the block to the output file
-            // o_file.write_at(block.data, block.offset).unwrap();
-        }
+        pb.println(format!("Wrote {} bytes at offset [{}]", job.data.len(), &job.offset)).unwrap();
 
-        pb.println(format!("Wrote {} bytes at offset [{}]", job.data.len(), job.offset)).unwrap();
+        job.write(&mut o_file).unwrap();
 
         // start timer
         start = Instant::now();
