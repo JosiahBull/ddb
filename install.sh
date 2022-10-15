@@ -2,10 +2,9 @@
 
 # download latest release from repo
 repo="https://github.com/josiahbull/dds"
-release=$(curl -sL $repo/releases/latest | grep -oP '(?<=/tag/).*(?=")')
 
 # download and extract release
-curl -sL $repo/releases/download/$release/dds.tar.gz | tar -xz
+curl -L $repo/releases/download/latest/dds --output dds
 
 # move binary to /usr/local/bin
 sudo mv dds /usr/local/bin
@@ -17,7 +16,7 @@ sudo chmod +x /usr/local/bin/dds
 
 # if the user has a .zshrc file, then run dds --generate zsh
 if [ -f ~/.zshrc ]; then
-    dds --generate=zsh > /usr/local/share/zsh/site-functions/_value_hints_derive
+    sudo dds --generate=zsh > /usr/local/share/zsh/site-functions/dds_completions
     compinit
 fi
 
@@ -30,7 +29,7 @@ fi
 
 # if the user has a .bashrc file, then run dds --generate bash
 if [ -f ~/.bashrc ]; then
-    dds --generate=bash > /etc/bash_completion.d/value_hints_derive
+    sudo dds --generate=bash > /etc/bash_completion.d/dds_completions
 fi
 
 # remove install script

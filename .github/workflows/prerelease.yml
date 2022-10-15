@@ -8,14 +8,24 @@ on:
 jobs:
   pre-release:
     name: "Pre Release"
-    runs-on: "ubuntu-latest"
+    runs-on: "ubuntu-20.04"
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
 
+      # remove glibc
+      - name: Install correct glibc version
+        run: |
+          sudo apt-get install -y libc6 libc6-dev
+
+      # glibc min version increased with 1.64.0
+      - name: Install specific rust version
+        run: |
+          rustup install 1.63.0
+
       - name: Build Project
-        run: cargo build --release
+        run: RUSTFLAGS='-C target-feature=+crt-static' cargo +1.63.0 build --release --target x86_64-unknown-linux-gnu
 
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
