@@ -1,5 +1,8 @@
 # DDS Disk Destroyer (is) Slow
 
+![Test](https://github.com/josiahbull/dds/actions/workflows/precommit.yaml/badge.svg)
+![Build](https://github.com/josiahbull/dds/actions/workflows/prerelease.yml/badge.svg)
+
 DDS is a tool to restore data to sd-cards. It is optimized for writing to
 devices with high read speeds, and low write speeds, where the majority of
 the destination data will match the source data. This is useful for
