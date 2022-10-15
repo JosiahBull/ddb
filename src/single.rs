@@ -1,4 +1,6 @@
-use std::{fs::OpenOptions, io::Read};
+use std::{fmt::Write, fs::OpenOptions, io::Read};
+
+use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 
 use crate::{
     error::DdsError,
@@ -23,8 +25,16 @@ fn __controller(cfg: Dds) {
         .open(&cfg.output)
         .unwrap();
 
-    let mut o_buffer = [0u8; BLOCK_SIZE];
+    let i_file_size = i_file.metadata().unwrap().len();
 
+    let pb = ProgressBar::new(i_file_size);
+    pb.set_position(0);
+    pb.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})")
+        .unwrap()
+        .with_key("eta", |state: &ProgressState, w: &mut dyn Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
+        .progress_chars("#>-"));
+
+    let mut o_buffer = [0u8; BLOCK_SIZE];
     let mut read_blocks = 0;
     loop {
         let mut i_buffer = vec![0u8; BLOCK_SIZE];
@@ -73,7 +83,9 @@ fn __controller(cfg: Dds) {
         }
 
         read_blocks += 1;
+        pb.set_position((read_blocks * BLOCK_SIZE) as u64);
     }
+    pb.finish_with_message("Complete");
 }
 
 pub fn controller(cfg: Dds) -> Result<(), DdsError> {
@@ -82,9 +94,7 @@ pub fn controller(cfg: Dds) -> Result<(), DdsError> {
     let thread = std::thread::Builder::new()
         .name("controller".to_string())
         .stack_size(stack_size)
-        .spawn(move || {
-            __controller(cfg);
-        })
+        .spawn(move || __controller(cfg))
         .unwrap();
 
     thread.join().unwrap();
