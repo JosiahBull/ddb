@@ -1,14 +1,42 @@
 [package]
-name = "ddb"
+name = "dds"
 version = "0.1.0"
 edition = "2021"
+authors = ["Josiah Bull"]
+description = "A conservative, precise, and concurrent drive backup and recovery utility"
+repository = "https://github.com/JosiahBull/dds"
+license = "MIT"
+readme = "README.md"
+keywords = ["sync", "file", "filesystem"]
+categories = ["command-line-utilities"]
+documentation = "https://github.com/JosiahBull/dds"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[[bin]]
+bench = false
+path = "src/main.rs"
+name = "dds"
+
+[lib]
+bench = false
+path = "src/lib.rs"
+name = "dds"
+
+[[test]]
+name = "integration-single"
+path = "tests/singlethreaded.rs"
+
+[[test]]
+name = "integration-multi"
+path = "tests/mutlithreaded.rs"
 
 [dependencies]
 indicatif = { version = "0.17.1" }
-clap = { version =  "4.0.13", features = []}
+clap = { version =  "4.0.15", features = ["derive", "suggestions", "color", "std"]}
+clap_complete = "4.0.2"
 static_assertions = "1.1.0"
+human-panic = "1.0.3"
 
 [dev-dependencies]
 rand="0.8.5"
+assert_cmd = "2.0.4"
+sha2 = "0.10.6"
