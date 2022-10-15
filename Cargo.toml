@@ -24,5 +24,5 @@ rand="0.8.5"
 [profile.release]
 # strip = true # debug symbols are good for reporting bugs
 # opt-level = "z"  # Optimize for size, will reduce performance
-lto = true
-codegen-units = 1
+# lto = true
+# codegen-units = 1

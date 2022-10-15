@@ -1,8 +1,8 @@
 use std::{fs::OpenOptions, io::Read};
 
-use crate::{utils::{validate_paths, Config, WriteJob}};
+use crate::{utils::{validate_paths, Config, WriteJob}, MIN_BLOCK_SIZE, error::DdsError, BLOCK_SIZE};
 
-pub fn controller(cfg: Config) {
+fn __controller(cfg: Config) {
     validate_paths(&cfg);
 
     let mut i_file = OpenOptions::new()
@@ -19,18 +19,21 @@ pub fn controller(cfg: Config) {
         .open(&cfg.output_file)
         .unwrap();
 
-    let mut o_buffer = [0u8; 1024*1024];
+    let mut o_buffer = [0u8; BLOCK_SIZE];
 
     let mut read_blocks = 0;
     loop {
-        let mut i_buffer = Vec::with_capacity(1024*1024);
+        let mut i_buffer = vec![0u8; BLOCK_SIZE];
 
         // read from the input and output into the buffer
         let i_bytes_read = {
             loop {
                 match i_file.read(&mut *i_buffer) {
                     Ok(n) => break n,
-                    Err(ref e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+                    Err(ref e) if e.kind() == std::io::ErrorKind::Interrupted => {
+                        println!("Interrupted");
+                        continue
+                    },
                     Err(e) => panic!("Error reading from input file: {}", e),
                 }
             }
@@ -39,7 +42,10 @@ pub fn controller(cfg: Config) {
             loop {
                 match o_file.read(&mut o_buffer) {
                     Ok(n) => break n,
-                    Err(ref e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+                    Err(ref e) if e.kind() == std::io::ErrorKind::Interrupted => {
+                        println!("Interrupted");
+                        continue
+                    },
                     Err(e) => panic!("Error reading from output file: {}", e),
                 }
             }
@@ -51,15 +57,26 @@ pub fn controller(cfg: Config) {
         }
 
         if i_buffer != o_buffer {
-            let job = WriteJob::break_into_blocks(i_buffer, &o_buffer, i_bytes_read, read_blocks * 1024*1024);
+            let job = WriteJob::break_into_blocks(i_buffer.clone(), &o_buffer, i_bytes_read, read_blocks*BLOCK_SIZE, MIN_BLOCK_SIZE);
+            debug_assert!(job.len() > 0);
             job.write(&mut o_file).unwrap();
-        }
-
-        // if we read less than the block size, we're done
-        if i_bytes_read < 1024*1024 || o_bytes_read < 1024*1024 {
-            break;
         }
 
         read_blocks += 1;
     }
+}
+
+pub fn controller(cfg: Config) -> Result<(), DdsError> {
+    let stack_size = BLOCK_SIZE + 1024*1024;
+
+    let thread = std::thread::Builder::new()
+        .name("controller".to_string())
+        .stack_size(stack_size)
+        .spawn(move || {
+            __controller(cfg);
+        }).unwrap();
+
+    thread.join().unwrap();
+
+    Ok(())
 }

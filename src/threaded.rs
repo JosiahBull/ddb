@@ -2,13 +2,12 @@ use std::{
     fs::OpenOptions,
     io::Read,
     sync::mpsc::{Receiver, SyncSender},
-    thread::sleep,
-    time::{Duration, Instant}
+    time::Instant, fmt::Write
 };
 
-use indicatif::{ProgressBar, MultiProgress, ProgressStyle};
+use indicatif::{ProgressBar, MultiProgress, ProgressStyle, ProgressState};
 
-use crate::{utils::{validate_paths, Config, WriteJob}, BLOCK_SIZE};
+use crate::{utils::{validate_paths, Config, WriteJob}, BLOCK_SIZE, MIN_BLOCK_SIZE, error::DdsError};
 
 fn reader(cfg: &Config, write_q: SyncSender<WriteJob>, pb: ProgressBar) {
     // open the input and output files
@@ -31,17 +30,16 @@ fn reader(cfg: &Config, write_q: SyncSender<WriteJob>, pb: ProgressBar) {
 
     pb.set_length(i_file_size);
     pb.set_position(0);
-    pb.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta}) ({msg})")
+    pb.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})")
         .unwrap()
-        // .with_key("eta", |state: &ProgressStyle, w: &mut dyn Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
+        .with_key("eta", |state: &ProgressState, w: &mut dyn Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
         .progress_chars("#>-"));
 
-    let mut average = 1;
     let mut read_blocks = 0;
     let mut o_buffer = [0u8; BLOCK_SIZE];
     loop {
         // allocate buffers on the heap
-        let mut i_buffer = Vec::with_capacity(BLOCK_SIZE);
+        let mut i_buffer = vec![0u8; BLOCK_SIZE];
 
         // read from the input and output into the buffer
         let i_bytes_read = {
@@ -69,30 +67,15 @@ fn reader(cfg: &Config, write_q: SyncSender<WriteJob>, pb: ProgressBar) {
         }
 
         if i_buffer != o_buffer {
-            let boxed = WriteJob::break_into_blocks(i_buffer, &o_buffer, i_bytes_read, read_blocks * BLOCK_SIZE);
-
-            // start timer
-            let start = std::time::Instant::now();
-
-            write_q.send(boxed).unwrap();
-
-            let end = std::time::Instant::now();
-            let elapsed = end.duration_since(start).as_nanos();
-
-            average -= average / (read_blocks + 1);
-            average += elapsed as usize / (read_blocks + 1);
+            let job = WriteJob::break_into_blocks(i_buffer, &o_buffer, i_bytes_read, read_blocks * BLOCK_SIZE, MIN_BLOCK_SIZE);
+            debug_assert!(job.len() > 0);
+            write_q.send(job).unwrap();
         }
 
-        // if we read less than the block size, we're done
-        if i_bytes_read < BLOCK_SIZE || o_bytes_read < BLOCK_SIZE {
-            break;
-        }
         pb.set_position(((read_blocks+1) * BLOCK_SIZE) as u64);
-        pb.set_message(format!("{} blocks/s", 1_000_000_000 / average));
-
         read_blocks += 1;
     }
-    pb.finish_with_message("Done reading");
+    pb.finish_with_message("Complete");
 }
 
 fn writer(cfg: &Config, write_q: Receiver<WriteJob>, pb: MultiProgress) {
@@ -103,9 +86,6 @@ fn writer(cfg: &Config, write_q: Receiver<WriteJob>, pb: MultiProgress) {
         .create(false)
         .open(&cfg.output_file)
         .unwrap();
-
-    // wait 100ms
-    sleep(Duration::from_millis(100));
 
     let mut average = 0;
     let mut samples = 0;
@@ -127,7 +107,7 @@ fn writer(cfg: &Config, write_q: Receiver<WriteJob>, pb: MultiProgress) {
     }
 }
 
-pub fn controller(cfg: Config) {
+pub fn controller(cfg: Config) -> Result<(), DdsError> {
     validate_paths(&cfg);
 
     let m_pb = MultiProgress::new();
@@ -136,7 +116,7 @@ pub fn controller(cfg: Config) {
     std::thread::scope(|scope| {
         let (write_q_tx, write_q_rx) = std::sync::mpsc::sync_channel(100);
 
-        let stack_size = (BLOCK_SIZE*2) + 1024 * 1024;
+        let stack_size = BLOCK_SIZE + 1024 * 1024;
         let pb = m_pb.add(ProgressBar::new(0));
         let reader_thread = std::thread::Builder::new()
             .stack_size(stack_size)
@@ -149,4 +129,6 @@ pub fn controller(cfg: Config) {
         reader_thread.join().unwrap();
         writer_thread.join().unwrap();
     });
+
+    Ok(())
 }
