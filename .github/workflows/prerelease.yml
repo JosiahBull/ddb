@@ -1,0 +1,30 @@
+---
+name: pre-release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  pre-release:
+    name: "Pre Release"
+    runs-on: "ubuntu-latest"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Build Project
+        run: cargo build --release
+
+      - uses: "marvinpinto/action-automatic-releases@latest"
+        with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          prerelease: true
+          automatic_release_tag: "dev"
+          title: "Dev Build"
+          files: |
+            license
+            readme.md
+            target/release/dds

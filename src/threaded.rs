@@ -1,28 +1,33 @@
 use std::{
+    fmt::Write,
     fs::OpenOptions,
     io::Read,
     sync::mpsc::{Receiver, SyncSender},
-    time::Instant, fmt::Write
+    time::Instant,
 };
 
-use indicatif::{ProgressBar, MultiProgress, ProgressStyle, ProgressState};
+use indicatif::{MultiProgress, ProgressBar, ProgressState, ProgressStyle};
 
-use crate::{utils::{validate_paths, Config, WriteJob}, BLOCK_SIZE, MIN_BLOCK_SIZE, error::DdsError};
+use crate::{
+    error::DdsError,
+    utils::{validate_paths, WriteJob},
+    Dds, BLOCK_SIZE, MIN_BLOCK_SIZE,
+};
 
-fn reader(cfg: &Config, write_q: SyncSender<WriteJob>, pb: ProgressBar) {
+fn reader(cfg: &Dds, write_q: SyncSender<WriteJob>, pb: ProgressBar) {
     // open the input and output files
     let mut i_file = OpenOptions::new()
         .read(true)
         .write(false)
         .create(false)
-        .open(&cfg.input_file)
+        .open(&cfg.input)
         .unwrap();
 
     let mut o_file = OpenOptions::new()
         .read(true)
         .write(false)
         .create(false)
-        .open(&cfg.output_file)
+        .open(&cfg.output)
         .unwrap();
 
     // get the size of the file
@@ -67,24 +72,30 @@ fn reader(cfg: &Config, write_q: SyncSender<WriteJob>, pb: ProgressBar) {
         }
 
         if i_buffer != o_buffer {
-            let job = WriteJob::break_into_blocks(i_buffer, &o_buffer, i_bytes_read, read_blocks * BLOCK_SIZE, MIN_BLOCK_SIZE);
-            debug_assert!(job.len() > 0);
+            let job = WriteJob::break_into_blocks(
+                i_buffer,
+                &o_buffer,
+                i_bytes_read,
+                read_blocks * BLOCK_SIZE,
+                MIN_BLOCK_SIZE,
+            );
+            debug_assert!(!job.is_empty());
             write_q.send(job).unwrap();
         }
 
-        pb.set_position(((read_blocks+1) * BLOCK_SIZE) as u64);
+        pb.set_position(((read_blocks + 1) * BLOCK_SIZE) as u64);
         read_blocks += 1;
     }
     pb.finish_with_message("Complete");
 }
 
-fn writer(cfg: &Config, write_q: Receiver<WriteJob>, pb: MultiProgress) {
+fn writer(cfg: &Dds, write_q: Receiver<WriteJob>, pb: MultiProgress) {
     // open the output file
     let mut o_file = OpenOptions::new()
         .read(false)
         .write(true)
         .create(false)
-        .open(&cfg.output_file)
+        .open(&cfg.output)
         .unwrap();
 
     let mut average = 0;
@@ -98,7 +109,12 @@ fn writer(cfg: &Config, write_q: Receiver<WriteJob>, pb: MultiProgress) {
         average -= average / samples;
         average += (Instant::now() - start).as_nanos() as u64 / samples;
 
-        pb.println(format!("Wrote {} bytes at offset [{}]", job.data.len(), &job.offset)).unwrap();
+        pb.println(format!(
+            "Wrote {} bytes at offset [{}]",
+            job.data.len(),
+            &job.offset
+        ))
+        .unwrap();
 
         job.write(&mut o_file).unwrap();
 
@@ -107,7 +123,7 @@ fn writer(cfg: &Config, write_q: Receiver<WriteJob>, pb: MultiProgress) {
     }
 }
 
-pub fn controller(cfg: Config) -> Result<(), DdsError> {
+pub fn controller(cfg: Dds) -> Result<(), DdsError> {
     validate_paths(&cfg);
 
     let m_pb = MultiProgress::new();
@@ -121,7 +137,8 @@ pub fn controller(cfg: Config) -> Result<(), DdsError> {
         let reader_thread = std::thread::Builder::new()
             .stack_size(stack_size)
             .name("reader_thread".to_string())
-            .spawn_scoped(scope, || reader(&cfg, write_q_tx, pb)).unwrap();
+            .spawn_scoped(scope, || reader(&cfg, write_q_tx, pb))
+            .unwrap();
 
         let writer_thread = scope.spawn(|| writer(&cfg, write_q_rx, m_pb));
 

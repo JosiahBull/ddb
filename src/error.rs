@@ -1,3 +1,2 @@
-pub enum DdsError {
-
-}
+#[derive(Debug)]
+pub enum DdsError {}
