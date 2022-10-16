@@ -16,6 +16,10 @@ it should work for any device (e.g. Rapsberry Pi).
 Note that for creating a disk image, it is still recommended to use `dd`, as
 it is more resource-efficient than this tool for creating a large block backup.
 
+This tool does support multithreading, using separate processes for reading and
+writing. This isn't especially useful in 99% of situations - but if you're
+expecting >70% of your sd card to be overwritten it could be useful to enable.
+
 ## Usage
 
 ```bash
@@ -23,7 +27,7 @@ it is more resource-efficient than this tool for creating a large block backup.
 sudo dd if=/dev/sda of=$HOME/sda.img status=progress
 
 # Restore the backup to the sd-card
-sudo dds --input $HOME/sda.img --output /dev/sda --threaded
+sudo dds --input=$HOME/sda.img --output=/dev/sda
 ```
 
 ## Installation

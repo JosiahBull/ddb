@@ -14,8 +14,7 @@ sudo chmod +x /usr/local/bin/dds
 # if the user has .oh-my-zsh installed, run dds --generate zsh
 if [ -d ~/.oh-my-zsh ]; then
     mkdir -p ~/.oh-my-zsh/completions/
-    dds --generate zsh > ~/.oh-my-zsh/completions/_dds
-    compinit
+    dds --generate zsh > ~/.oh-my-zsh/completions/_dds --input d --output d
 fi
 
 echo "dds installed successfully, try running dds --help"
