@@ -42,8 +42,11 @@ curl https://raw.githubusercontent.com/josiahbull/dds/main/install.sh | bash
 # install rust
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
-# install from github
-cargo install dds --git https://github.com/JosiahBull/dds --force
+# clone and build from source
+git clone https://github.com/josiahbull/dds/
+cd dds
+cargo build --release
+./target/release/dds --help
 ```
 
 ## Contribution and Licensing
